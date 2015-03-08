@@ -1,6 +1,14 @@
+#The toolchain to use. arm-none-eabi works, but there does exist 
+# arm-bcm2708-linux-gnueabi.
 ARMGNU ?= arm-none-eabi
+
+# The intermediate directory for compiled object files.
 BUILD = build/
+
+# The directory in which source files are stored.
 SOURCE = src/
+
+# The name of the output file to generate.
 TARGET = kernel.img
 
 # The name of the assembler listing file to generate.
@@ -19,8 +27,10 @@ LIBRARIES := csud
 # assembly code files in source.
 OBJECTS := $(patsubst $(SOURCE)%.s,$(BUILD)%.o,$(wildcard $(SOURCE)*.s))
 
+# Rule to make everything.
 all: $(TARGET) $(LIST)
 
+# Rule to remake everything. Does not include clean.
 rebuild: all
 
 # Rule to make the listing file.
@@ -36,12 +46,13 @@ $(BUILD)output.elf : $(OBJECTS) $(LINKER)
 	$(ARMGNU)-ld --no-undefined $(OBJECTS) -L. $(patsubst %,-l %,$(LIBRARIES)) -Map $(MAP) -o $(BUILD)output.elf -T $(LINKER)
 
 # Rule to make the object files.
-$(BUILD)%.o: $(SOURCE)%.s
+$(BUILD)%.o: $(SOURCE)%.s $(BUILD)
 	$(ARMGNU)-as -I $(SOURCE) $< -o $@
 
 $(BUILD):
 	mkdir $@
 
+# Rule to clean files.
 clean : 
 	-rm -rf $(BUILD)
 	-rm -f $(TARGET)
