@@ -1,90 +1,83 @@
-/* Place l'@ du Gpio dans r0 /
-/ void* GetGpioAddress() */
 .globl GetGpioAddress
-GetGpioAddress:
-	gpio .req r0
-	ldr gpio,=0x20200000
+GetGpioAddress: 
+	gpioAddr .req r0
+	ldr gpioAddr,=0x20200000
 	mov pc,lr
-	.unreq gpio
+	.unreq gpioAddr
 
-/* Défini la fonction du Gpio passé en param d'après les 3 derniers bits de r1 /
-/ void SetGpioFunction(u32 gpioRegister, u32 function) */
 .globl SetGpioFunction
 SetGpioFunction:
-    pin .req r0
-    pinFn .req r1
+    pinNum .req r0
+    pinFunc .req r1
+	cmp pinNum,#53
+	cmpls pinFunc,#7
+	movhi pc,lr
 
-	cmp pin,#53			/* si pin valide */
-	cmpls pinFn,#7
-	movhi pc,lr			/* mov pc dans lr si pinFn <= 111 */
-
-	push {lr}			/* push du code lr vers top de stack */
-	mov r2,pin
-	.unreq pin
-	pin .req r2
-	bl GetGpioAddress		/* bl déplace lr vers nv instru == branche */
-	gpio .req r0
+	push {lr}
+	mov r2,pinNum
+	.unreq pinNum
+	pinNum .req r2
+	bl GetGpioAddress
+	gpioAddr .req r0
 
 	functionLoop$:
-		cmp pin,#9		/* si pin <= 10 */
-		subhi pin,#10		/* pin - 10 */
-		addhi gpio,#4		/* gpio(Fn) + 4 */
+		cmp pinNum,#9
+		subhi pinNum,#10
+		addhi gpioAddr,#4
 		bhi functionLoop$
 
-	add pin, pin,lsl #1
-	lsl pinFn,pin
+	add pinNum, pinNum,lsl #1
+	lsl pinFunc,pinNum
 
-	tmp .req r3
-	mov tmp,#7			/* tmp <- r3 = 111 (#7) */
-	lsl tmp,pin			/* ShiftLeft => r3 (..111..) à l'@ de fn de r1 */
-	.unreq pin
+	mask .req r3
+	mov mask,#7
+	lsl mask,pinNum
+	.unreq pinNum
 
-	mvn tmp,tmp			/* inverse tmp => (..000..) à l'@ de la fn de r1 */
-	prevFn .req r2
-	ldr prevFn,[gpio]		/* r2 <- @ instrus prec */
-	and prevFn,tmp
-	.unreq tmp
+	mvn mask,mask
+	oldFunc .req r2
+	ldr oldFunc,[gpioAddr]
+	and oldFunc,mask
+	.unreq mask
 
-	orr pinFn,prevFn		/* r3 <- pinFn or prevFn  */
-	.unreq prevFn
+	orr pinFunc,oldFunc
+	.unreq oldFunc
 
-	str pinFn,[gpio]		/* place gpio dans l'@ pinFn */
-	.unreq pinFn
-	.unreq gpio
+	str pinFunc,[gpioAddr]
+	.unreq pinFunc
+	.unreq gpioAddr
 	pop {pc}
 
-/* Monte le gpio a l'@ de ro si r1 != 0; le descend sinon /
-/ void SetGpio(u32 gpioRegister, u32 value) */
 .globl SetGpio
-SetGpio:
-    pin .req r0
+SetGpio:	
+    pinNum .req r0
     pinVal .req r1
 
-	cmp pin,#53
+	cmp pinNum,#53
 	movhi pc,lr
 	push {lr}
-	mov r2,pin
-    .unreq pin
-    pin .req r2
+	mov r2,pinNum	
+    .unreq pinNum	
+    pinNum .req r2
 	bl GetGpioAddress
-    gpio .req r0
+    gpioAddr .req r0
 
-	pinTmp .req r3
-	lsr pinTmp,pin,#5		/* place ds pinTmp le ShiftRight5 de pin */
-	lsl pinTmp,#2
-	add gpio,pinTmp
-	.unreq pinTmp
+	pinBank .req r3
+	lsr pinBank,pinNum,#5
+	lsl pinBank,#2
+	add gpioAddr,pinBank
+	.unreq pinBank
 
-	and pin,#31			/* 31 = 11111 */
-	newVal .req r3
-	mov newVal,#1
-	lsl newVal,pin
-	.unreq pin
+	and pinNum,#31
+	setBit .req r3
+	mov setBit,#1
+	lsl setBit,pinNum
+	.unreq pinNum
 
-	teq pinVal,#0			/* si r1 == 0 */
+	teq pinVal,#0
 	.unreq pinVal
-	streq newVal,[gpio,#40]		/* vrai : déplace gpio vers +40 (val turn off)*/
-	strne newVal,[gpio,#28]		/* faux : déplace gpio vers +28 (val turn on) */
-	.unreq newVal
-	.unreq gpio
+	streq setBit,[gpioAddr,#40]
+	strne setBit,[gpioAddr,#28]
+	.unreq setBit
+	.unreq gpioAddr
 	pop {pc}
